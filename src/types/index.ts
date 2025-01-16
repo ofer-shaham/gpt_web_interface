@@ -9,6 +9,7 @@ export interface UserRequest {
   inputLanguage: string;
   outputLanguages: string[];
   url: string;
+  special_notes: string;
 }
 
 export interface AppState {
