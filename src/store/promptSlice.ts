@@ -75,7 +75,7 @@ const promptSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(processPrompt.fulfilled, (state, action) => {
+      .addCase(processPrompt.fulfilled, (state) => {
         state.isLoading = false;
       })
       .addCase(processPrompt.rejected, (state, action) => {
