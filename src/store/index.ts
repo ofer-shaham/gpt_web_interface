@@ -1,11 +1,21 @@
+// src/store/index.ts
 import { configureStore } from '@reduxjs/toolkit';
-import promptReducer from './promptSlice';
+import sentencesReducer from './sentencesSlice';
+import { useDispatch, useSelector, TypedUseSelectorHook } from 'react-redux';
 
-export const store = configureStore({
+// Create a Redux store
+const store = configureStore({
   reducer: {
-    prompt: promptReducer,
+    sentences: sentencesReducer,
   },
 });
 
+// Define RootState and AppDispatch types
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
+
+// Create custom hooks
+export const useAppDispatch = () => useDispatch<AppDispatch>();
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+
+export default store;

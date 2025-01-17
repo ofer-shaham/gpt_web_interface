@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { AppState, UserRequest } from '../types';
+import { AppState, UserRequest } from '.';
 import { sendAIRequest } from '../services/apiService';
 
 const initialState: AppState = {
@@ -10,8 +10,7 @@ const initialState: AppState = {
     expected_response_format_to_feed_json_parse: '[{ "lang_code": "string", "text": "string" }]',
     special_notes: 'return pure text and not markdown',
     maxSentences: 10,
-        minSentences: 10,
-
+    minSentences: 10,
     maxWordsInSentence: 50,
     maxTotalResponseChars: 500,
     inputLanguage: 'en',
@@ -27,11 +26,11 @@ export const processPrompt = createAsyncThunk(
   async (request: UserRequest) => {
     const { role, url, ...payload } = request;
     const response = await sendAIRequest(url, role, payload);
-    
+
     if (!response.success) {
       throw new Error(response.error);
     }
-    
+
     return response.data;
   }
 );

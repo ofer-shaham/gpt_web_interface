@@ -1,4 +1,4 @@
-import { TranslateParams } from '../types';
+import { TranslateParams } from '../store';
 
 export const translate = ({ finalTranscriptProxy, fromLang, toLang }: TranslateParams): Promise<string> => {
     return fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${fromLang}&tl=${toLang}&dt=t&q=${encodeURIComponent(finalTranscriptProxy)}`)
