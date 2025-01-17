@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import sentencesReducer from './store/sentencesSlice';
 import SentencesList from './components/SentencesList';
+import PromptTester from './components/PromptTester';
 
 const store = configureStore({
   reducer: {
@@ -56,9 +57,12 @@ const initialSentences = [
 
 const App: React.FC = () => {
   return (
+
+    
     <Provider store={store}>
       <div className="p-8">
-        <SentencesList sentences={initialSentences} /> {/* Pass sentences prop */}
+        <PromptTester />
+        {/* <SentencesList sentences={initialSentences} />   */}
       </div>
     </Provider>
   );

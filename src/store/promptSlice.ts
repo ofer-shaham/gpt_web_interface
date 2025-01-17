@@ -1,6 +1,32 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { AppState, UserRequest } from '.';
+// import { AppState, UserRequest } from '.';
 import { sendAIRequest } from '../services/apiService';
+
+
+// src/store/types.ts
+
+export interface UserRequest {
+  role: string;
+  scene: string;
+  currentMessage: string;
+  expected_response_format_to_feed_json_parse: string;
+  special_notes: string;
+  maxSentences: number;
+  minSentences: number;
+  maxWordsInSentence: number;
+  maxTotalResponseChars: number;
+  inputLanguage: string;
+  outputLanguages: string[];
+  url: string;
+}
+
+export interface AppState {
+  user_request: UserRequest; // The user request object
+  isLoading: boolean; // Loading state
+  error: string | null; // Error message
+}
+
+
 
 const initialState: AppState = {
   user_request: {

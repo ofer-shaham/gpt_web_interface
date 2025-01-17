@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import {  Loader2, MessageSquare, AlertCircle } from 'lucide-react';
-import { AppDispatch, RootState } from '../store';
-import {  processPrompt } from '../store/promptSlice';
+import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
+import { processPrompt } from '../store/promptSlice';
+import { useAppDispatch, useAppSelector } from '../store';
 
 const LANGUAGES = [
   { code: 'en', name: 'English' },
@@ -11,9 +10,8 @@ const LANGUAGES = [
 ];
 
 function PromptTester() {
-  const dispatch = useDispatch<AppDispatch>();
-  const { user_request, isLoading, error } = useSelector((state: RootState) => state.prompt);
-
+  const { user_request, isLoading, error } = useAppSelector((state) => state.prompt);
+  const dispatch = useAppDispatch();
   // Local state to hold temporary values
   const [tempRequest, setTempRequest] = useState(user_request);
   const [responseBody, setResponseBody] = useState(''); // State to hold response body

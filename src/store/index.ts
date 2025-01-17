@@ -1,12 +1,14 @@
 // src/store/index.ts
 import { configureStore } from '@reduxjs/toolkit';
 import sentencesReducer from './sentencesSlice';
+import promptReducer from './promptSlice'; // Import the prompt reducer
 import { useDispatch, useSelector, TypedUseSelectorHook } from 'react-redux';
 
 // Create a Redux store
 const store = configureStore({
   reducer: {
     sentences: sentencesReducer,
+    prompt: promptReducer, // Add the prompt reducer here
   },
 });
 
