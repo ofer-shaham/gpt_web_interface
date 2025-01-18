@@ -1,41 +1,55 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, AlertCircle, Send, MessageSquare, Code, Settings2 } from 'lucide-react';
 import { AppState, processPrompt, updateRequest, UserRequest } from '../store/promptSlice';
 import { useAppDispatch, useAppSelector } from '../store';
 import { expectedResponse } from '../store/types/response';
 import { updateResponseSentences } from '../store/responseSlice';
+import Select, { MultiValue, ActionMeta } from 'react-select';
 
+// Define a type for language options
+interface LanguageOption {
+  value: string;
+  label: string;
+}
 
-const LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'ar', name: 'Arabic' },
-  { code: 'he', name: 'Hebrew' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'pt', name: 'Portuguese' },  { code: 'it', name: 'Italian' },
-  { code: 'zh', name: 'Chinese (Simplified)' },
-
-] as const;
+// Define a type for the response sentence structure
+interface ResponseSentence {
+  lang_code: string;
+  text: string;
+}
 
 function PromptTester() {
   const dispatch = useAppDispatch();
   const promptState = useAppSelector((state) => state.prompt as AppState);
-  const [selectedOutputLanguages, setSelectedOutputLanguages] = useState<string[]>(
-    promptState?.user_request?.outputLanguages || []
-  );
+  const [selectedOutputLanguages, setSelectedOutputLanguages] = useState<LanguageOption[]>([]);
   const [isDeveloperMode, setIsDeveloperMode] = useState(false);
+  const [voices, setVoices] = useState<LanguageOption[]>([]);
+  const [shareableUrl, setShareableUrl] = useState<string | null>(null);
 
   const { user_request, isLoading, error } = promptState;
 
-  const handleLanguageToggle = (langCode: string) => {
-    setSelectedOutputLanguages(prev => {
-      const isSelected = prev.includes(langCode);
-      if (isSelected) {
-        return prev.filter(code => code !== langCode);
-      } else {
-        return [...prev, langCode];
-      }
-    });
+  // Fetch available TTS voices
+  useEffect(() => {
+    const fetchVoices = () => {
+      const availableVoices = speechSynthesis.getVoices();
+
+      // Create a unique set of voices based on lang and name
+      const uniqueLanguages = Array.from(new Set(availableVoices.map(voice => voice.lang)))
+        .map(lang => {
+          const voice = availableVoices.find(v => v.lang === lang);
+          return { value: lang, label: voice?.lang + '    (' + voice?.name +')' }; // Use voice name or fallback to lang
+        });
+
+      setVoices(uniqueLanguages);
+    };
+
+    // Fetch voices on load and when the voices change
+    fetchVoices();
+    window.speechSynthesis.onvoiceschanged = fetchVoices;
+  }, []);
+
+  const handleLanguageChange = (selectedOptions: MultiValue<LanguageOption>, actionMeta: ActionMeta<LanguageOption>) => {
+    setSelectedOutputLanguages(selectedOptions as LanguageOption[]); // Cast to LanguageOption[]
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement | HTMLSelectElement>) => {
@@ -56,14 +70,14 @@ function PromptTester() {
 
     const updatedRequest: UserRequest = {
       ...user_request,
-      outputLanguages: selectedOutputLanguages
+      outputLanguages: selectedOutputLanguages.map(option => option.value), // Extract values from selected options
     };
 
     try {
       const response = await dispatch(processPrompt(updatedRequest)).unwrap();
       const typedResponse = response as expectedResponse;
 
-      let parsedResult;
+      let parsedResult: ResponseSentence[]; // Use the defined ResponseSentence type
       if (typeof typedResponse.result === 'string') {
         try {
           parsedResult = JSON.parse(typedResponse.result);
@@ -83,12 +97,31 @@ function PromptTester() {
 
         if (isValidResponse) {
           dispatch(updateResponseSentences(parsedResult));
+          generateShareableUrl(parsedResult); // Generate shareable URL
         } else {
           console.error('Invalid sentence structure:', parsedResult);
         }
       }
     } catch (error) {
       console.error('Failed to process prompt:', error);
+    }
+  };
+
+  const generateShareableUrl = (responses: ResponseSentence[]) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('responses', JSON.stringify(responses));
+    setShareableUrl(url.toString());
+  };
+
+  const copyToClipboard = () => {
+    if (shareableUrl) {
+      navigator.clipboard.writeText(shareableUrl)
+        .then(() => {
+          alert('Shareable URL copied to clipboard!');
+        })
+        .catch(err => {
+          console.error('Failed to copy: ', err);
+        });
     }
   };
 
@@ -101,7 +134,7 @@ function PromptTester() {
     maxTotalResponseChars: user_request.maxTotalResponseChars,
     minTotalResponseChars: user_request.minTotalResponseChars,
     inputLanguage: user_request.inputLanguage,
-    outputLanguages: selectedOutputLanguages,
+    outputLanguages: selectedOutputLanguages.map(option => option.value), // Extract values from selected options
     role: user_request.role,
     url: user_request.url,
     expected_response_format_to_feed_json_parse: user_request.expected_response_format_to_feed_json_parse,
@@ -145,24 +178,18 @@ function PromptTester() {
             />
           </div>
 
-          {/* Language Selection */}
+          {/* Language Selection with Multi-Select */}
           <div className="space-y-2">
             <label className="block text-sm font-medium">Select Languages</label>
-            <div className="flex flex-wrap gap-2">
-              {LANGUAGES.map(({ code, name }) => (
-                <button
-                  key={code}
-                  type="button"
-                  onClick={() => handleLanguageToggle(code)}
-                  className={`px-4 py-2 rounded-md transition-colors ${selectedOutputLanguages.includes(code)
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-gray-700'
-                    }`}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
+            <Select
+              isMulti
+              options={voices}
+              value={selectedOutputLanguages}
+              onChange={handleLanguageChange}
+              className="basic-multi-select"
+              classNamePrefix="select"
+              placeholder="Select languages..."
+            />
           </div>
         </div>
 
@@ -276,6 +303,18 @@ function PromptTester() {
                 {JSON.stringify(requestPayload, null, 2)}
               </pre>
             </div>
+          </div>
+        )}
+
+        {/* Shareable URL Button */}
+        {user_request.outputLanguages.length > 0 && (
+          <div className="flex justify-between">
+            <button
+              onClick={copyToClipboard}
+              className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded transition-colors"
+            >
+              Share URL
+            </button>
           </div>
         )}
 
