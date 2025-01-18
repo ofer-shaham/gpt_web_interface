@@ -6,19 +6,21 @@ import { sendAIRequest } from '../services/apiService';
 // src/store/types.ts
 
 export interface UserRequest {
-  role: string;
-  scene: string;
-  currentMessage: string;
-  expected_response_format_to_feed_json_parse: string;
-  special_notes: string;
-  maxSentences: number;
-  minSentences: number;
-  maxWordsInSentence: number;
   maxTotalResponseChars: number;
+  minTotalResponseChars?: number; // Ensure this is defined
+  maxSentences: number;
+  minSentences?: number; // Ensure this is defined
+  maxWordsInSentence: number;
   inputLanguage: string;
   outputLanguages: string[];
+  role: string;
   url: string;
+  expected_response_format_to_feed_json_parse: string;
+  special_notes: string;
+  currentMessage: string;
+  scene: string;
 }
+
 
 export interface AppState {
   user_request: UserRequest; // The user request object
