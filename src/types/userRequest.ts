@@ -15,5 +15,3 @@ export interface UserRequest {
   outputLanguages: string[];
   url: string;
 }
-
-

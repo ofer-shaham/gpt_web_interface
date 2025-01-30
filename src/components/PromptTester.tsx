@@ -7,6 +7,8 @@ import { updateResponseSentences } from '../store/responseSlice';
 import Select, { MultiValue } from 'react-select';
 import CompiledRequestDisplay from './CompiledRequestDisplay';
 import { useCompileRequestAndInstructions } from '../hooks/useCompileRequestAndInstructions';
+import { translate } from '../utils/translate'; // Import the translation utility
+import { speakText } from '../utils/speakIt'; // Import the speak utility
 
 // Define expected response type
 interface ExpectedResponse {
@@ -14,7 +16,18 @@ interface ExpectedResponse {
 }
 
 // Define the enabled fields type
-type EnabledFields = Record<keyof UserRequest | string, boolean>;
+type EnabledFields = {
+  currentMessage: boolean;
+  outputLanguages: boolean;
+  role: boolean;
+  scene: boolean;
+  minTotalResponseChars: boolean;
+  maxTotalResponseChars: boolean;
+  minSentences: boolean;
+  maxSentences: boolean;
+  maxWordsInSentence: boolean;
+  special_notes: boolean;
+};
 
 function PromptTester() {
   const dispatch = useAppDispatch();
@@ -35,7 +48,6 @@ function PromptTester() {
     maxWordsInSentence: true,
     special_notes: false
   });
-
   const { userRequest, isLoading, error } = promptState;
   const { instructions } = useCompileRequestAndInstructions(
     userRequest,
@@ -43,6 +55,21 @@ function PromptTester() {
     selectedOutputLanguages
   );
   const compiledRequest = { instructions };
+
+  // Check URL for responses on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const responsesParam = urlParams.get('responses');
+
+    if (responsesParam) {
+      try {
+        const parsedResponses: ResponseSentence[] = JSON.parse(responsesParam);
+        dispatch(updateResponseSentences(parsedResponses)); // Update the state with parsed responses
+      } catch (error) {
+        console.error('Failed to parse responses from URL:', error);
+      }
+    }
+  }, [dispatch]); // Run once on mount
 
   useEffect(() => {
     const fetchVoices = () => {
@@ -86,7 +113,6 @@ function PromptTester() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-
     try {
       const response = await dispatch(processPrompt({ role: userRequest.role, payload: instructions }));
       const typedResponse = response.payload as unknown as ExpectedResponse;
@@ -110,12 +136,11 @@ function PromptTester() {
         );
 
         if (isValidResponse) {
-          console.info("respons is valid", { parsedResult })
+          console.info("Response is valid", { parsedResult });
           dispatch(updateResponseSentences(parsedResult));
           generateShareableUrl(parsedResult);
         } else {
           console.error('Not a valid response:', parsedResult);
-
         }
       }
     } catch (error) {
@@ -125,7 +150,7 @@ function PromptTester() {
 
   const generateShareableUrl = (responses: ResponseSentence[]) => {
     const url = new URL(window.location.href);
-    url.searchParams.set('responses', JSON.stringify(responses));
+    url.searchParams.set('responses', JSON.stringify(responses)); // Ensure responses are stringified
     setShareableUrl(url.toString());
   };
 
@@ -149,6 +174,20 @@ function PromptTester() {
       return acc;
     }, {} as Partial<UserRequest>);
   }, [userRequest, selectedOutputLanguages, enabledFields]);
+
+  const handleWordClick = async (word: string) => {
+    const translatedText = await translate(word, 'en', 'es'); // Example: translating from English to Spanish
+    speakText(translatedText, 'es'); // Speak the translated text
+    alert(`Translated: ${translatedText}`); // Display translation as an alert (can be replaced with a tooltip)
+  };
+
+  const renderSentenceWithClickableWords = (sentence: string) => {
+    return sentence.split(' ').map((word, index) => (
+      <span key={index} onClick={() => handleWordClick(word)} className="cursor-pointer hover:underline">
+        {word}
+      </span>
+    ));
+  };
 
   const renderField = (fieldName: keyof EnabledFields, label: string, component: React.ReactNode) => {
     if (!isDeveloperMode && !enabledFields[fieldName]) {
@@ -301,7 +340,7 @@ function PromptTester() {
                 min="1"
                 max="20"
                 value={userRequest.maxSentences}
-                onChange={(e) => handleRowSliderChange(userRequest?.minSentences || 0, Number(e.target.value))}
+                onChange={(e) => handleRowSliderChange(userRequest.minSentences || 0, Number(e.target.value))}
                 className="w-full"
                 disabled={!enabledFields.maxSentences}
               />
