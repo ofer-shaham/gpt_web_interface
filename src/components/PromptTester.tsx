@@ -2,21 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, AlertCircle, Send, MessageSquare, Code, Settings2 } from 'lucide-react';
 import { AppState, processPrompt, updateRequest, UserRequest } from '../store/promptSlice';
 import { useAppDispatch, useAppSelector } from '../store';
-import { expectedResponse } from '../store/types/response';
+import { LanguageOption, ResponseSentence } from '../types';
 import { updateResponseSentences } from '../store/responseSlice';
-import Select, { MultiValue, ActionMeta } from 'react-select';
+import Select, { MultiValue } from 'react-select';
+import CompiledRequestDisplay from './CompiledRequestDisplay';
+import { useCompileRequestAndInstructions } from '../hooks/useCompileRequestAndInstructions';
 
-// Define a type for language options
-interface LanguageOption {
-  value: string;
-  label: string;
+// Define expected response type
+interface ExpectedResponse {
+  result: ResponseSentence[] | string;
 }
 
-// Define a type for the response sentence structure
-interface ResponseSentence {
-  lang_code: string;
-  text: string;
-}
+// Define the enabled fields type
+type EnabledFields = Record<keyof UserRequest | string, boolean>;
 
 function PromptTester() {
   const dispatch = useAppDispatch();
@@ -25,36 +23,56 @@ function PromptTester() {
   const [isDeveloperMode, setIsDeveloperMode] = useState(false);
   const [voices, setVoices] = useState<LanguageOption[]>([]);
   const [shareableUrl, setShareableUrl] = useState<string | null>(null);
+  const [enabledFields, setEnabledFields] = useState<EnabledFields>({
+    currentMessage: true,
+    outputLanguages: false,
+    role: true,
+    scene: false,
+    minTotalResponseChars: false,
+    maxTotalResponseChars: false,
+    minSentences: true,
+    maxSentences: false,
+    maxWordsInSentence: true,
+    special_notes: false
+  });
 
-  const { user_request, isLoading, error } = promptState;
+  const { userRequest, isLoading, error } = promptState;
+  const { instructions } = useCompileRequestAndInstructions(
+    userRequest,
+    enabledFields,
+    selectedOutputLanguages
+  );
+  const compiledRequest = { instructions };
 
-  // Fetch available TTS voices
   useEffect(() => {
     const fetchVoices = () => {
       const availableVoices = speechSynthesis.getVoices();
-
-      // Create a unique set of voices based on lang and name
       const uniqueLanguages = Array.from(new Set(availableVoices.map(voice => voice.lang)))
         .map(lang => {
           const voice = availableVoices.find(v => v.lang === lang);
-          return { value: lang, label: voice?.lang + '    (' + voice?.name +')' }; // Use voice name or fallback to lang
+          return { value: lang, label: `${voice?.lang} (${voice?.name})` };
         });
-
       setVoices(uniqueLanguages);
     };
 
-    // Fetch voices on load and when the voices change
     fetchVoices();
     window.speechSynthesis.onvoiceschanged = fetchVoices;
   }, []);
 
-  const handleLanguageChange = (selectedOptions: MultiValue<LanguageOption>, actionMeta: ActionMeta<LanguageOption>) => {
-    setSelectedOutputLanguages(selectedOptions as LanguageOption[]); // Cast to LanguageOption[]
+  const handleLanguageChange = (selectedOptions: MultiValue<LanguageOption>) => {
+    setSelectedOutputLanguages(selectedOptions as LanguageOption[]);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    dispatch(updateRequest({ [name]: value }));
+    dispatch(updateRequest({ [name]: value } as Partial<UserRequest>));
+  };
+
+  const handleCheckboxChange = (fieldName: keyof EnabledFields) => {
+    setEnabledFields(prev => ({
+      ...prev,
+      [fieldName]: !prev[fieldName]
+    }));
   };
 
   const handleCharSliderChange = (min: number, max: number) => {
@@ -68,16 +86,12 @@ function PromptTester() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const updatedRequest: UserRequest = {
-      ...user_request,
-      outputLanguages: selectedOutputLanguages.map(option => option.value), // Extract values from selected options
-    };
 
     try {
-      const response = await dispatch(processPrompt(updatedRequest)).unwrap();
-      const typedResponse = response as expectedResponse;
+      const response = await dispatch(processPrompt({ role: userRequest.role, payload: instructions }));
+      const typedResponse = response.payload as unknown as ExpectedResponse;
 
-      let parsedResult: ResponseSentence[]; // Use the defined ResponseSentence type
+      let parsedResult: ResponseSentence[];
       if (typeof typedResponse.result === 'string') {
         try {
           parsedResult = JSON.parse(typedResponse.result);
@@ -96,10 +110,12 @@ function PromptTester() {
         );
 
         if (isValidResponse) {
+          console.info("respons is valid", { parsedResult })
           dispatch(updateResponseSentences(parsedResult));
-          generateShareableUrl(parsedResult); // Generate shareable URL
+          // generateShareableUrl(parsedResult);
         } else {
-          console.error('Invalid sentence structure:', parsedResult);
+          console.error('Not a valid response:', parsedResult);
+
         }
       }
     } catch (error) {
@@ -116,34 +132,235 @@ function PromptTester() {
   const copyToClipboard = () => {
     if (shareableUrl) {
       navigator.clipboard.writeText(shareableUrl)
-        .then(() => {
-          alert('Shareable URL copied to clipboard!');
-        })
-        .catch(err => {
-          console.error('Failed to copy: ', err);
-        });
+        .then(() => alert('Shareable URL copied to clipboard!'))
+        .catch(err => console.error('Failed to copy: ', err));
     }
   };
 
-  const requestPayload = useMemo(() => ({
-    scene: user_request.scene,
-    currentMessage: user_request.currentMessage,
-    maxSentences: user_request.maxSentences,
-    minSentences: user_request.minSentences,
-    maxWordsInSentence: user_request.maxWordsInSentence,
-    maxTotalResponseChars: user_request.maxTotalResponseChars,
-    minTotalResponseChars: user_request.minTotalResponseChars,
-    inputLanguage: user_request.inputLanguage,
-    outputLanguages: selectedOutputLanguages.map(option => option.value), // Extract values from selected options
-    role: user_request.role,
-    url: user_request.url,
-    expected_response_format_to_feed_json_parse: user_request.expected_response_format_to_feed_json_parse,
-    special_notes: user_request.special_notes,
-  }), [user_request, selectedOutputLanguages]);
+  const requestPayload = useMemo(() => {
+    return Object.entries(enabledFields).reduce((acc, [key, enabled]) => {
+      if (enabled) {
+        if (key === 'outputLanguages') {
+          acc[key] = selectedOutputLanguages.map(option => option.value);
+        } else {
+          acc[key] = userRequest[key as keyof UserRequest];
+        }
+      }
+      return acc;
+    }, {} as Partial<UserRequest>);
+  }, [userRequest, selectedOutputLanguages, enabledFields]);
 
-  if (!promptState) {
-    return <div>Loading...</div>;
-  }
+  const renderField = (fieldName: keyof EnabledFields, label: string, component: React.ReactNode) => {
+    if (!isDeveloperMode && !enabledFields[fieldName]) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id={`${fieldName}-checkbox`}
+            checked={enabledFields[fieldName]}
+            onChange={() => handleCheckboxChange(fieldName)}
+            className="w-4 h-4 text-blue-600"
+          />
+          <label htmlFor={fieldName} className="block text-sm font-medium">
+            {label}
+          </label>
+        </div>
+        <div className={!enabledFields[fieldName] ? "opacity-50" : ""}>
+          {component}
+        </div>
+      </div>
+    );
+  };
+
+  const renderControls = () => {
+    const baseControls = (
+      <>
+        {renderField(
+          'currentMessage',
+          'Your Message',
+          <textarea
+            id="currentMessage"
+            name="currentMessage"
+            value={userRequest.currentMessage}
+            onChange={handleInputChange}
+            className="w-full min-h-[100px] p-2 border rounded-md"
+            placeholder="Enter your message here..."
+            disabled={!enabledFields.currentMessage}
+          />
+        )}
+
+        {renderField(
+          'outputLanguages',
+          'Select Languages',
+          <Select
+            isMulti
+            options={voices}
+            value={selectedOutputLanguages}
+            onChange={handleLanguageChange}
+            className="basic-multi-select"
+            classNamePrefix="select"
+            placeholder="Select languages..."
+            isDisabled={!enabledFields.outputLanguages}
+          />
+        )}
+      </>
+    );
+
+    const advancedControls = (
+      <div className="grid grid-cols-2 gap-4">
+        {renderField(
+          'role',
+          'Role',
+          <textarea
+            id="role"
+            name="role"
+            value={userRequest.role}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded-md"
+            disabled={!enabledFields.role}
+          />
+        )}
+
+        {renderField(
+          'scene',
+          'Scene',
+          <textarea
+            id="scene"
+            name="scene"
+            value={userRequest.scene}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded-md"
+            disabled={!enabledFields.scene}
+          />
+        )}
+
+        <div className="col-span-2">
+          {renderField(
+            'minTotalResponseChars',
+            'Minimum Total Characters',
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="0"
+                max="1000"
+                value={userRequest.minTotalResponseChars || 0}
+                onChange={(e) => handleCharSliderChange(Number(e.target.value), userRequest.maxTotalResponseChars)}
+                className="w-full"
+                disabled={!enabledFields.minTotalResponseChars}
+              />
+              <span>{userRequest.minTotalResponseChars || 0}</span>
+            </div>
+          )}
+
+          {renderField(
+            'maxTotalResponseChars',
+            'Maximum Total Characters',
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="0"
+                max="1000"
+                value={userRequest.maxTotalResponseChars}
+                onChange={(e) => handleCharSliderChange(userRequest.minTotalResponseChars || 0, Number(e.target.value))}
+                className="w-full"
+                disabled={!enabledFields.maxTotalResponseChars}
+              />
+              <span>{userRequest.maxTotalResponseChars}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="col-span-2">
+          {renderField(
+            'minSentences',
+            'Minimum Sentences',
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="1"
+                max="20"
+                value={userRequest.minSentences}
+                onChange={(e) => handleRowSliderChange(Number(e.target.value), userRequest.maxSentences)}
+                className="w-full"
+                disabled={!enabledFields.minSentences}
+              />
+              <span>{userRequest.minSentences}</span>
+            </div>
+          )}
+
+          {renderField(
+            'maxSentences',
+            'Maximum Sentences',
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="1"
+                max="20"
+                value={userRequest.maxSentences}
+                onChange={(e) => handleRowSliderChange(userRequest?.minSentences || 0, Number(e.target.value))}
+                className="w-full"
+                disabled={!enabledFields.maxSentences}
+              />
+              <span>{userRequest.maxSentences}</span>
+            </div>
+          )}
+        </div>
+
+        {renderField(
+          'maxWordsInSentence',
+          'Max Words per Sentence',
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              id="maxWordsInSentence"
+              name="maxWordsInSentence"
+              value={userRequest.maxWordsInSentence}
+              onChange={handleInputChange}
+              className="w-full p-2 border rounded-md"
+              disabled={!enabledFields.maxWordsInSentence}
+            />
+          </div>
+        )}
+
+        {renderField(
+          'special_notes',
+          'Special Notes',
+          <textarea
+            id="special_notes"
+            name="special_notes"
+            value={userRequest.special_notes}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded-md"
+            disabled={!enabledFields.special_notes}
+          />
+        )}
+      </div>
+    );
+
+    return (
+      <div className="space-y-4">
+        {baseControls}
+        <CompiledRequestDisplay compiledRequest={compiledRequest} />
+        {isDeveloperMode && (
+          <div className="p-4 bg-gray-50 rounded-lg space-y-4">
+            {advancedControls}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Request Preview</label>
+              <pre className="mt-1 p-4 bg-gray-50 rounded-md overflow-auto text-sm">
+                {JSON.stringify(requestPayload, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  if (!promptState) return <div>Loading...</div>;
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -164,150 +381,9 @@ function PromptTester() {
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Basic Inputs (Always Visible) */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="currentMessage" className="block text-sm font-medium">Your Message</label>
-            <textarea
-              id="currentMessage"
-              name="currentMessage"
-              value={user_request.currentMessage}
-              onChange={handleInputChange}
-              className="w-full min-h-[100px] p-2 border rounded-md"
-              placeholder="Enter your message here..."
-            />
-          </div>
+        {renderControls()}
 
-          {/* Language Selection with Multi-Select */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">Select Languages</label>
-            <Select
-              isMulti
-              options={voices}
-              value={selectedOutputLanguages}
-              onChange={handleLanguageChange}
-              className="basic-multi-select"
-              classNamePrefix="select"
-              placeholder="Select languages..."
-            />
-          </div>
-        </div>
-
-        {/* Developer Mode Settings */}
-        {isDeveloperMode && (
-          <div className="p-4 bg-gray-50 rounded-lg space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="role" className="block text-sm font-medium">Role</label>
-                <textarea
-                  id="role"
-                  name="role"
-                  value={user_request.role}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="scene" className="block text-sm font-medium">Scene</label>
-                <textarea
-                  id="scene"
-                  name="scene"
-                  value={user_request.scene}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              {/* Character Count Slider */}
-              <div className="space-y-2 col-span-2">
-                <label className="block text-sm font-medium">Total Characters</label>
-                <div className="flex items-center">
-                  <input
-                    type="range"
-                    min="0"
-                    max="1000"
-                    value={user_request.minTotalResponseChars || 0} // Default to 0 if undefined
-                    onChange={(e) => handleCharSliderChange(Number(e.target.value), user_request.maxTotalResponseChars)}
-                    className="w-full"
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="1000"
-                    value={user_request.maxTotalResponseChars}
-                    onChange={(e) => handleCharSliderChange(user_request.minTotalResponseChars || 0, Number(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-                <div className="flex justify-between">
-                  <span>Min: {user_request.minTotalResponseChars || 0}</span>
-                  <span>Max: {user_request.maxTotalResponseChars}</span>
-                </div>
-              </div>
-
-              {/* Row Count Slider */}
-              <div className="space-y-2 col-span-2">
-                <label className="block text-sm font-medium">Total Rows</label>
-                <div className="flex items-center">
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    value={user_request.minSentences}
-                    onChange={(e) => handleRowSliderChange(Number(e.target.value), user_request.maxSentences)}
-                    className="w-full"
-                  />
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    value={user_request.maxSentences}
-                    onChange={(e) => handleRowSliderChange(user_request.minSentences || 0, Number(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-                <div className="flex justify-between">
-                  <span>Min: {user_request.minSentences}</span>
-                  <span>Max: {user_request.maxSentences}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="maxWordsInSentence" className="block text-sm font-medium">Max Words per Sentence</label>
-                <input
-                  type="number"
-                  id="maxWordsInSentence"
-                  name="maxWordsInSentence"
-                  value={user_request.maxWordsInSentence}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="special_notes" className="block text-sm font-medium">Special Notes</label>
-                <textarea
-                  id="special_notes"
-                  name="special_notes"
-                  value={user_request.special_notes}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium">Request Preview</label>
-              <pre className="mt-1 p-4 bg-gray-50 rounded-md overflow-auto text-sm">
-                {JSON.stringify(requestPayload, null, 2)}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {/* Shareable URL Button */}
-        {user_request.outputLanguages.length > 0 && (
+        {shareableUrl && (
           <div className="flex justify-between">
             <button
               onClick={copyToClipboard}
@@ -318,33 +394,32 @@ function PromptTester() {
           </div>
         )}
 
-        {/* Submit Button */}
         <button
           type="submit"
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-md hover:bg-blue-700 transition-colors"
           disabled={isLoading}
-          className="w-full py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-blue-300 flex items-center justify-center gap-2"
         >
           {isLoading ? (
             <>
-              <Loader2 className="animate-spin" />
+              <Loader2 className="w-5 h-5 animate-spin" />
               Processing...
             </>
           ) : (
             <>
-              <Send className="w-4 h-4" />
-              Generate Response
+              <Send className="w-5 h-5" />
+              Submit
             </>
           )}
         </button>
-      </form>
 
-      {/* Error Display */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-600 flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" />
-          <span>{error}</span>
-        </div>
-      )}
+        {error && (
+          <div className="flex items-center gap-2 text-red-600">
+            <AlertCircle className="w-5 h-5" />
+            {error}
+          </div>
+        )}
+      </form>
+      <p>shareableUrl: {shareableUrl}</p>
     </div>
   );
 }

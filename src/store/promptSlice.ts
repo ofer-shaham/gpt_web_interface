@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 // import { AppState, UserRequest } from '.';
 import { sendAIRequest } from '../services/apiService';
 
+const url = 'https://api-git-main-ofershahams-projects.vercel.app/ai/logic'
 
 // src/store/types.ts
 
@@ -14,7 +15,7 @@ export interface UserRequest {
   inputLanguage: string;
   outputLanguages: string[];
   role: string;
-  url: string;
+
   expected_response_format_to_feed_json_parse: string;
   special_notes: string;
   currentMessage: string;
@@ -23,7 +24,7 @@ export interface UserRequest {
 
 
 export interface AppState {
-  user_request: UserRequest; // The user request object
+  userRequest: UserRequest; // The user request object
   isLoading: boolean; // Loading state
   error: string | null; // Error message
 }
@@ -31,8 +32,8 @@ export interface AppState {
 
 
 const initialState: AppState = {
-  user_request: {
-    role: "You're an Arabic and Hebrew teacher who prefers using words that are similar in both languages. You enjoy teaching through proverbs, idioms, and traditional cultural tales.",
+  userRequest: {
+    role: "You're a language teacher who prefers using words that are similar in both languages. You enjoy teaching through proverbs, idioms, and traditional cultural tales.  Your answer must follow the following json interface: { lang_code: string, text: string }[]. make sure not to deliver a markdown format but a json or a stringified json",
     scene: "dialogue between two children who are learning each other's language and meet for the first time in the house of one of the boys. they come from a different background and want to learn each other language",
     currentMessage: "the arabic speaker asks the hebrew speaker if he wants to drink tea",
     expected_response_format_to_feed_json_parse: '[{ "lang_code": "string", "text": "string" }]',
@@ -43,7 +44,6 @@ const initialState: AppState = {
     maxTotalResponseChars: 500,
     inputLanguage: 'en',
     outputLanguages: [],
-    url: 'https://api-git-main-ofershahams-projects.vercel.app/ai/logic'
   },
   isLoading: false,
   error: null,
@@ -51,8 +51,8 @@ const initialState: AppState = {
 
 export const processPrompt = createAsyncThunk(
   'prompt/process',
-  async (request: UserRequest) => {
-    const { role, url, ...payload } = request;
+  async (request: { role: string, payload: string }) => {
+    const { role, payload } = request;
     const response = await sendAIRequest(url, role, payload);
 
     if (!response.success) {
@@ -68,7 +68,7 @@ const promptSlice = createSlice({
   initialState,
   reducers: {
     updateRequest: (state, action: PayloadAction<Partial<UserRequest>>) => {
-      state.user_request = { ...state.user_request, ...action.payload };
+      state.userRequest = { ...state.userRequest, ...action.payload };
     },
   },
   extraReducers: (builder) => {
