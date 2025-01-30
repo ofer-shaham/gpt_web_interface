@@ -1,8 +1,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { sentence } from './types/sentence';
+import { Sentence } from '../types/sentence';
 
 interface ResponseState {
-  sentences: sentence[];
+  sentences: Sentence[];
 }
 
 const initialState: ResponseState = {
@@ -13,7 +13,7 @@ const responseSlice = createSlice({
   name: 'response',
   initialState,
   reducers: {
-    updateResponseSentences(state, action: PayloadAction<sentence[]>) {
+    updateResponseSentences(state, action: PayloadAction<Sentence[]>) {
       state.sentences = action.payload;
     }
   }

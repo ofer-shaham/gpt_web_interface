@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { UserRequest, LanguageOption } from '../types'; // Ensure the path is correct
+import { UserRequest, LanguageOption } from '../types/types'; // Ensure the path is correct
 
 interface CompileResult {
   instructions: string;
@@ -58,7 +58,7 @@ export function useCompileRequestAndInstructions(
         case 'outputLanguages': {
 
           const languages = selectedOutputLanguages.map(lang => lang.value).join(', ');
-          instructionParts.push(`Use the following languages (each person know only one language and tries to communicate using it): ${languages}`);
+          instructionParts.push(`Use the following languages (each person know only one language and tries to communicate with it): ${languages}`);
           break;
         }
         case 'special_notes': {

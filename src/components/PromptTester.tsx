@@ -112,7 +112,7 @@ function PromptTester() {
         if (isValidResponse) {
           console.info("respons is valid", { parsedResult })
           dispatch(updateResponseSentences(parsedResult));
-          // generateShareableUrl(parsedResult);
+          generateShareableUrl(parsedResult);
         } else {
           console.error('Not a valid response:', parsedResult);
 

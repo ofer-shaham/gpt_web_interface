@@ -1,15 +1,10 @@
 import { useState } from 'react';
 import { FaPlay, FaStop, FaPause, FaPlayCircle } from 'react-icons/fa'; // Import play, stop, and pause icons
-
-interface Sentence {
-  id: string;
-  lang_code: string;
-  text: string;
-}
+import { TranslatedSentence } from '../types/translated'; // Import the types
 
 interface SentencesListProps {
-  sentences?: Array<Omit<Sentence, 'id'>>;
-  onSentencePlay?: (sentence: Sentence) => void;
+  translations: Array<TranslatedSentence>;
+  onSentencePlay?: (sentence: TranslatedSentence) => void;
 }
 
 interface WordSpan {
@@ -19,32 +14,26 @@ interface WordSpan {
 }
 
 const COLORS = [
-  'text-blue-500', // Color 0
-  'text-red-500',  // Color 1
-  'text-green-500', // Color 2
-  'text-purple-500', // Color 3
-  'text-orange-500', // Color 4
-  'text-teal-500',   // Color 5
-  'text-yellow-500', // Color 6
-  'text-pink-500'    // Color 7
+  'text-blue-500',
+  'text-red-500',
+  'text-green-500',
+  'text-purple-500',
+  'text-orange-500',
+  'text-teal-500',
+  'text-yellow-500',
+  'text-pink-500'
 ];
 
 const SentencesList = ({
-  sentences = [],
+  translations = [],
   onSentencePlay
 }: SentencesListProps) => {
   const [activeSentenceId, setActiveSentenceId] = useState<string | null>(null);
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
   const [wordSpans, setWordSpans] = useState<WordSpan[]>([]);
-  const [isPaused, setIsPaused] = useState<boolean>(false); // State to track pause/resume
+  const [isPaused, setIsPaused] = useState<boolean>(false);
 
-  // Add IDs to sentences if they don't have them
-  const processedSentences: Sentence[] = sentences.map((sentence, index) => ({
-    ...sentence,
-    id: `sentence-${index + 1}`
-  }));
-
-  if (!processedSentences || processedSentences.length === 0) {
+  if (!translations || translations.length === 0) {
     return (
       <div className="p-4 text-center text-gray-500">
         No sentences available
@@ -66,7 +55,7 @@ const SentencesList = ({
     });
   };
 
-  const handlePlaySentence = (sentence: Sentence) => {
+  const handlePlaySentence = (sentence: TranslatedSentence) => {
     setActiveSentenceId(sentence.id);
     setCurrentWordIndex(-1);
 
@@ -88,7 +77,7 @@ const SentencesList = ({
       setActiveSentenceId(null);
       setCurrentWordIndex(-1);
       setWordSpans([]);
-      setIsPaused(false); // Reset pause state when speech ends
+      setIsPaused(false);
     };
 
     if (onSentencePlay) {
@@ -99,9 +88,9 @@ const SentencesList = ({
   };
 
   const handlePlayAllSentences = () => {
-    window.speechSynthesis.cancel(); // Stop any ongoing speech
+    window.speechSynthesis.cancel();
 
-    processedSentences.forEach((sentence, index) => {
+    translations.forEach((sentence, index) => {
       const utterance = new SpeechSynthesisUtterance(sentence.text);
       utterance.lang = sentence.lang_code;
 
@@ -122,11 +111,11 @@ const SentencesList = ({
       };
 
       utterance.onend = () => {
-        if (index === processedSentences.length - 1) {
+        if (index === translations.length - 1) {
           setActiveSentenceId(null);
           setCurrentWordIndex(-1);
           setWordSpans([]);
-          setIsPaused(false); // Reset pause state when all sentences finish
+          setIsPaused(false);
         }
       };
 
@@ -139,18 +128,16 @@ const SentencesList = ({
     setActiveSentenceId(null);
     setCurrentWordIndex(-1);
     setWordSpans([]);
-    setIsPaused(false); // Reset pause state
+    setIsPaused(false);
   };
 
   const handlePauseResume = () => {
     if (isPaused) {
-      // Resume
       window.speechSynthesis.resume();
     } else {
-      // Pause
       window.speechSynthesis.pause();
     }
-    setIsPaused(!isPaused); // Toggle pause state
+    setIsPaused(!isPaused);
   };
 
   const isRTL = (langCode: string) => {
@@ -158,28 +145,27 @@ const SentencesList = ({
   };
 
   const getColorByLang = (index: number) => {
-    return COLORS[index % COLORS.length]; // Use modulo to cycle through colors
+    return COLORS[index % COLORS.length];
   };
 
-  const renderSentence = (sentence: Sentence) => {
+  const renderSentence = (sentence: TranslatedSentence) => {
     if (sentence.id === activeSentenceId && wordSpans.length > 0) {
       return wordSpans.map((span, index) => (
         <span
           key={index}
           className={`${index === currentWordIndex ? 'bg-yellow-200' : ''
-            } transition-colors duration-200 ${getColorByLang(sentences.findIndex(s => s.lang_code === sentence.lang_code))}`}
+            } transition-colors duration-200 ${getColorByLang(translations.findIndex(s => s.lang_code === sentence.lang_code))}`}
         >
           {span.word}
           {index < wordSpans.length - 1 ? ' ' : ''}
         </span>
       ));
     }
-    return <span className={getColorByLang(sentences.findIndex(s => s.lang_code === sentence.lang_code))}>{sentence.text}</span>;
+    return <span className={getColorByLang(translations.findIndex(s => s.lang_code === sentence.lang_code))}>{sentence.text}</span>;
   };
 
   return (
     <div className="space-y-4">
-      {/* Toolbar for shared controls */}
       <div className="flex justify-between">
         <div className="flex space-x-2">
           <button
@@ -204,7 +190,7 @@ const SentencesList = ({
       </div>
 
       <div className="flex flex-col space-y-2">
-        {processedSentences.map((sentence) => (
+        {translations.map((sentence) => (
           <div
             key={sentence.id}
             className={`p-4 rounded ${activeSentenceId === sentence.id ? 'bg-blue-100' : 'bg-gray-100'
@@ -212,6 +198,7 @@ const SentencesList = ({
             dir={isRTL(sentence.lang_code) ? 'rtl' : 'ltr'}
           >
             <span className="flex-1 text-lg">{renderSentence(sentence)}</span>
+            <span className="flex-1 text-lg text-gray-600 italic ml-4">{sentence.translatedText}</span>
             <button
               onClick={() => handlePlaySentence(sentence)}
               className={`${isRTL(sentence.lang_code) ? 'mr-4' : 'ml-4'} ${activeSentenceId === sentence.id
