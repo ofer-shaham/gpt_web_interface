@@ -422,16 +422,7 @@ function PromptTester() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {renderControls()}
 
-        {shareableUrl && (
-          <div className="flex justify-between">
-            <button
-              onClick={copyToClipboard}
-              className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded transition-colors"
-            >
-              Share URL
-            </button>
-          </div>
-        )}
+       
 
         <button
           type="submit"
@@ -458,7 +449,18 @@ function PromptTester() {
           </div>
         )}
       </form>
-      <p>shareableUrl: {shareableUrl}</p>
+
+ {shareableUrl && (
+          <div className="flex justify-between">
+            <button
+              onClick={copyToClipboard}
+              className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded transition-colors"
+            >
+              Share URL
+            </button>
+          </div>
+        )}
+      
     </div>
   );
 }
